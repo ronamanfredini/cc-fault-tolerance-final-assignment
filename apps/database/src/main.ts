@@ -97,8 +97,8 @@ app.post('/assign-cluster-master', (req, res) => {
 });
 
 app.post('/health', (req, res) => {
-  const { dbUrl } = req.body;
-  const db = cluster.find((db: any) => db.url === dbUrl);
+  const { url } = req.body;
+  const db = cluster.find((db: any) => db.url === url);
   if (!db) {
     cluster.push(req.body);
   }
