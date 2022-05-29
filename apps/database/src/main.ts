@@ -46,6 +46,16 @@ function stopIntervalChecks() {
 
 startIntervalChecks();
 
+function reclaimThePower() {
+  stopIntervalChecks();
+  cluster.shift();
+  isMainDb = true;
+  cluster.forEach((db) => {
+    axios.post(`${db.url}/assign-cluster-master`, { url: serverUrl });
+  })
+  startIntervalChecks();
+}
+
 async function pushHealthCheck() {
   if (!isMainDb) {
     axios.post(`${mainDbBaseUrl}/health`, {
@@ -59,13 +69,7 @@ async function pushHealthCheck() {
       .catch(() => {
         console.log('Sync failed, main db is down. Reassigning cluster master...');
         if (cluster[0].url === serverUrl) {
-          stopIntervalChecks();
-          cluster.shift();
-          isMainDb = true;
-          cluster.forEach((db) => {
-            axios.post(`${db.url}/assign-cluster-master`, { url: serverUrl });
-          })
-          startIntervalChecks();
+          reclaimThePower();
         }
       });
   }
@@ -169,8 +173,13 @@ app.put('/sync', (req, res) => {
 });
 
 app.use((req, res) => {
-  
-  console.log('after');
+  const data = readJson(thisDbDatastore);
+
+  cluster.forEach((db) => {
+    axios.put(`${db.url}/sync`, data);
+  });
+
+  res.end();
 });
 
 const server = app.listen(port, () => {
