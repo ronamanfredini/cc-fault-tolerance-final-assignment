@@ -1,17 +1,75 @@
-/**
- * This is not a production server yet!
- * This is only a minimal backend to get started.
- */
-
 import { readJson, saveJson } from '@cc-fault-tolerance/utils';
 import * as express from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
+import axios from 'axios';
+import { IDBCheck } from './interface/IDBCheck';
 
 const app = express();
 app.use(express.json());
 const dbBasePaths = path.resolve('datastore');
 const thisDbDatastore = path.join(dbBasePaths, process.env.DB_FILE);
+const port = process.env.port || 3333;
+const serverUrl = `http://localhost:${port}`;
+
+let isMainDb = process.env.MAIN_DB === 'true';
+let mainDbBaseUrl = 'http://localhost:3333';
+let cluster: Array<IDBCheck> = [];
+let healthInterval: NodeJS.Timeout;
+let isStillALiveInterval: NodeJS.Timeout;
+
+function startIntervalChecks() {
+  healthInterval = setInterval(function health() {
+    pushHealthCheck();
+    return health;
+  }(), 1000);
+
+  isStillALiveInterval = setInterval(function checkIfDbIsStillAlive() {
+    if (isMainDb) {
+      console.log(`I'm master DB`, cluster);
+      cluster.forEach((db, idx) => {
+        const now = new Date().getTime();
+        if (now - db.time > 10000) {
+          console.log(`db ${db.url} is down`);
+          cluster.splice(idx, 1);
+        }
+      })
+    }
+    return checkIfDbIsStillAlive;
+  }(), 500);
+}
+
+function stopIntervalChecks() {
+  clearInterval(healthInterval);
+  clearInterval(isStillALiveInterval);
+}
+
+startIntervalChecks();
+
+async function pushHealthCheck() {
+  if (!isMainDb) {
+    axios.post(`${mainDbBaseUrl}/health`, {
+      url: serverUrl,
+      time: new Date().getTime()
+    })
+      .then((responseData) => {
+        const { data } = responseData;
+        cluster = data;
+      })
+      .catch(() => {
+        console.log('Sync failed, main db is down. Reassigning cluster master...');
+        if (cluster[0].url === serverUrl) {
+          stopIntervalChecks();
+          cluster.shift();
+          isMainDb = true;
+          cluster.forEach((db) => {
+            axios.post(`${db.url}/assign-cluster-master`, { url: serverUrl });
+          })
+          startIntervalChecks();
+        }
+      });
+  }
+}
 
 function createDatastore() {
   const datastores = fs.readdirSync(dbBasePaths);
@@ -32,12 +90,28 @@ function getAllRecords() {
   return readJson(thisDbDatastore);
 }
 
+app.post('/assign-cluster-master', (req, res) => {
+  const { url } = req.body;
+  mainDbBaseUrl = url;
+  res.status(200).send('ok');
+});
+
+app.post('/health', (req, res) => {
+  const { dbUrl } = req.body;
+  const db = cluster.find((db: any) => db.url === dbUrl);
+  if (!db) {
+    cluster.push(req.body);
+  }
+
+  res.send(cluster);
+});
+
 app.get('/:id', (req, res) => {
   const retrievedData = getRecordFromId(req.params.id);
   res.send(retrievedData);
 });
 
-app.post('/', (req, res) => {
+app.post('/', (req, res, next) => {
   const data = req.body;
 
   const allRecords = getAllRecords();
@@ -48,9 +122,10 @@ app.post('/', (req, res) => {
   saveJson(thisDbDatastore, allRecords);
 
   res.send({ message: 'Saved' });
+  next();
 });
 
-app.patch('/:id', (req, res) => {
+app.patch('/:id', (req, res, next) => {
   const data = req.body;
   const record = getRecordFromId(req.params.id);
   if (!record) {
@@ -66,9 +141,10 @@ app.patch('/:id', (req, res) => {
   saveJson(thisDbDatastore, allRecords);
 
   res.send({ message: 'Saved' });
+  next();
 });
 
-app.delete('/:id', (req, res) => {
+app.delete('/:id', (req, res, next) => {
   const allRecords = getAllRecords();
   console.log(req.params.id)
   let recordIndex = -1;
@@ -85,10 +161,19 @@ app.delete('/:id', (req, res) => {
 
   saveJson(thisDbDatastore, allRecords);
   res.send({ message: 'Deleted' });
+  next();
 });
 
-const port = process.env.port || 3333;
+app.put('/sync', (req, res) => {
+  saveJson(thisDbDatastore, req.body);
+});
+
+app.use((req, res) => {
+  
+  console.log('after');
+});
+
 const server = app.listen(port, () => {
-  console.log(`Listening at http://localhost:${port}/api`);
+  console.log(`Listening at ${serverUrl}`);
 });
 server.on('error', console.error);
