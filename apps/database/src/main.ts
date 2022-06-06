@@ -18,11 +18,42 @@ let cluster: Array<IDBCheck> = [];
 let healthInterval: NodeJS.Timeout;
 let isStillALiveInterval: NodeJS.Timeout;
 
-function startIntervalChecks() {
+async function retrieveMainDbUrl() {
+  try {
+    const defaultMainDbIsUp = await axios.get(`${mainDbBaseUrl}/role`);
+    if (defaultMainDbIsUp.data === 'master') {
+      return mainDbBaseUrl;
+    }
+  } catch {} finally {
+    let starterPort = 3000;
+    for (let i = starterPort; i < 4000; i++) {
+      try {
+        const url = `http://localhost:${i}`;
+        const isMaster = (await axios.get(`${url}/role`)).data === 'master';
+        if (isMaster) {
+          return url;
+        }
+      } catch(err) {
+        continue;
+      }
+    }
+  }
+
+  throw new Error('No master db found');
+}
+
+async function setupSlave() {
+  mainDbBaseUrl = await retrieveMainDbUrl();
   healthInterval = setInterval(function health() {
     pushHealthCheck();
     return health;
   }(), 1000);
+}
+
+function startIntervalChecks() {
+  if (!isMainDb) {
+    setupSlave();
+  }
 
   isStillALiveInterval = setInterval(function checkIfDbIsStillAlive() {
     if (isMainDb) {
@@ -98,6 +129,10 @@ app.post('/assign-cluster-master', (req, res) => {
   const { url } = req.body;
   mainDbBaseUrl = url;
   res.status(200).send('ok');
+});
+
+app.get('/role', (req, res) => {
+  return res.status(200).send(isMainDb ? 'master' : 'slave');
 });
 
 app.post('/health', (req, res) => {
