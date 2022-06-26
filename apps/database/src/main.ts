@@ -61,7 +61,7 @@ function startIntervalChecks() {
       cluster.forEach((db, idx) => {
         const now = new Date().getTime();
         if (now - db.time > 10000) {
-          console.log(`db ${db.url} is down`);
+          // console.log(`db ${db.url} is down`);
           cluster.splice(idx, 1);
         }
       })
@@ -213,6 +213,9 @@ app.use((req, res) => {
   cluster.forEach((db) => {
     axios.put(`${db.url}/sync`, data);
   });
+  
+  axios.put(`${mainDbBaseUrl}/sync`, data);
+  console.log(cluster);
 
   res.end();
 });
