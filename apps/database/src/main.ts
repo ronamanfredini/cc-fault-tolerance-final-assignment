@@ -48,6 +48,9 @@ async function setupSlave() {
     pushHealthCheck();
     return health;
   }(), 1000);
+
+  const { data } = await axios.get(`${mainDbBaseUrl}/all`);
+  saveJson(thisDbDatastore, data);
 }
 
 function startIntervalChecks() {
@@ -129,6 +132,10 @@ app.post('/assign-cluster-master', (req, res) => {
   const { url } = req.body;
   mainDbBaseUrl = url;
   res.status(200).send('ok');
+});
+
+app.get('/all', (req, res) => {
+  return res.status(200).send(getAllRecords());
 });
 
 app.get('/role', (req, res) => {
