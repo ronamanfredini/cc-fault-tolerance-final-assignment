@@ -1,94 +1,102 @@
 
 
-# CcFaultTolerance
+# Replicação Ativa em Tolerância a Falhas
 
-This project was generated using [Nx](https://nx.dev).
+O projeto consiste em uma aplicação tolerante a falhas baseada na tecnologia de replicação ativa, onde todas as bases são idependentes, recebendo requests e enviando responses;
 
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="450"></p>
+## Tecnologias utilizadas
 
-🔎 **Smart, Fast and Extensible Build System**
-
-## Adding capabilities to your workspace
-
-Nx supports many plugins which add capabilities for developing different types of applications and different tools.
-
-These capabilities include generating applications, libraries, etc as well as the devtools to test, and build projects as well.
-
-Below are our core plugins:
-
-- [React](https://reactjs.org)
-  - `npm install --save-dev @nrwl/react`
-- Web (no framework frontends)
-  - `npm install --save-dev @nrwl/web`
-- [Angular](https://angular.io)
-  - `npm install --save-dev @nrwl/angular`
+- [NGINX](https://www.nginx.com)
+- [NX](https://nx.dev)
 - [Nest](https://nestjs.com)
-  - `npm install --save-dev @nrwl/nest`
 - [Express](https://expressjs.com)
-  - `npm install --save-dev @nrwl/express`
 - [Node](https://nodejs.org)
-  - `npm install --save-dev @nrwl/node`
-
-There are also many [community plugins](https://nx.dev/community) you could add.
-
-## Generate an application
-
-Run `nx g @nrwl/react:app my-app` to generate an application.
-
-> You can use any of the plugins above to generate applications as well.
-
-When using Nx, you can create multiple applications and libraries in the same workspace.
-
-## Generate a library
-
-Run `nx g @nrwl/react:lib my-lib` to generate a library.
-
-> You can also use any of the plugins above to generate libraries as well.
-
-Libraries are shareable across libraries and applications. They can be imported from `@cc-fault-tolerance/mylib`.
-
-## Development server
-
-Run `nx serve my-app` for a dev server. Navigate to http://localhost:4200/. The app will automatically reload if you change any of the source files.
-
-## Code scaffolding
-
-Run `nx g @nrwl/react:component my-component --project=my-app` to generate a new component.
-
-## Build
-
-Run `nx build my-app` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `--prod` flag for a production build.
-
-## Running unit tests
-
-Run `nx test my-app` to execute the unit tests via [Jest](https://jestjs.io).
-
-Run `nx affected:test` to execute the unit tests affected by a change.
-
-## Running end-to-end tests
-
-Run `nx e2e my-app` to execute the end-to-end tests via [Cypress](https://www.cypress.io).
-
-Run `nx affected:e2e` to execute the end-to-end tests affected by a change.
-
-## Understand your workspace
-
-Run `nx graph` to see a diagram of the dependencies of your projects.
-
-## Further help
-
-Visit the [Nx Documentation](https://nx.dev) to learn more.
 
 
+## Informações importantes
+Para entender os próximos passos:
+- Todas as instâncias são independentes
+- As instâncias estão expostas no mesmo host, em portas distintas
+- Com as instâncias em portas distintas, a configuração do NGINX se faz necessária para garantir a transparência do Client sobre a disponibilidade da aplicação.
 
-## ☁ Nx Cloud
+## Instalação e Configuração em SO Ubuntu
+### NGINX
+Executar `sudo apt update` e em sequência `sudo apt install nginx` para instalar o nginx.
+Executar `sudo ufw allow 'Nginx HTTP'` para liberacao do http do nginx no firewall.
 
-### Distributed Computation Caching & Distributed Task Execution
+Para poder customizar as configurações default do nginx rodar os comandos:
 
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-cloud-card.png"></p>
+- `sudo unlink /etc/nginx/sites-enabled/default`
+- `cd /etc/nginx/sites-available`
+- `sudo nano reverse-proxy.conf`
 
-Nx Cloud pairs with Nx in order to enable you to build and test code more rapidly, by up to 10 times. Even teams that are new to Nx can connect to Nx Cloud and start saving time instantly.
+> Após rodar os comandos abrirá o nano para descrever a nova configuração do NGINX
 
-Teams using Nx gain the advantage of building full-stack applications with their preferred framework alongside Nx’s advanced code generation and project dependency graph, plus a unified experience for both frontend and backend developers.
+No nano colar a seguinte configuração:
 
-Visit [Nx Cloud](https://nx.app/) to learn more.
+```
+http {
+	upstream backend {
+		least_conn;
+		server 127.0.0.1:3333;
+		server 127.0.0.1:3332 backup;
+		server 127.0.0.1:3331 backup;
+	}
+	server {
+		listen 3000;
+		location / {
+			proxy_pass http://backend;
+		}
+	}
+}
+```
+
+Adicionar a mesma configuração no arquivo nginx.conf, para isso:
+Executar `sudo nano /etc/nginx/nginx.conf` e colar dentro do arquivo a mesma configuração.
+
+> Interessante tomar cuidado nesse ponto pois a tag http já existe dentro do arquivo nginx.conf, portanto deve-se colar apenas o conteúdo contigo dentro da tag http, no nosso caso é a tag upstream e server, exemplo:
+
+```
+	upstream backend {
+		least_conn;
+		server 127.0.0.1:3333;
+		server 127.0.0.1:3332 backup;
+		server 127.0.0.1:3331 backup;
+	}
+
+	server {
+		listen 3000;
+		location / {
+			proxy_pass http://backend;
+		}
+	}
+```
+Finalizado as configurações do NGINX é necessário fazer um restart do serviço, para isso:
+Executar `sudo service nginx restart` para reiniciar o serviço e a configuração do Nginx está concluída.
+
+###Aplicação
+
+Dependências:
+- Instalar NodeJs
+  - `sudo apt install nodejs`
+- Instalar NX
+  - `npm install -g nx`
+- Intalar git
+  - `sudo apt install git`
+
+
+Pra configurar a aplicação precisamos primeiro fazer um clone deste repositório, para isso:
+Executar `git clone https://github.com/ronamanfredini/cc-fault-tolerance-final-assignment.git` na sua pasta de preferência.
+
+Com o clone da aplicação realizado, acesse a pasta da aplicação, rode o seguinte comando para realizar a instalação das dependências `npm install`.
+
+Depois de ter tudo instalado e a aplicação configurada, pode-se então subir as 3 instâncias das bases separadamente. Pra facilitar, abra 3 linhas de comando no diretório da aplicação e execute:
+
+- `./startup.sh`
+- `./startup-2.sh`
+- `./startup-3.sh`
+
+E a aplicação estará rodando normalmente.
+
+
+
