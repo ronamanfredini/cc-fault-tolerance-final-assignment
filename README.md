@@ -83,6 +83,8 @@ Dependências:
   - `npm install -g nx`
 - Intalar git
   - `sudo apt install git`
+- Intalar postman
+  - `sudo apt install postman`
 
 
 Pra configurar a aplicação precisamos primeiro fazer um clone deste repositório, para isso:
@@ -97,6 +99,12 @@ Depois de ter tudo instalado e a aplicação configurada, pode-se então subir a
 - `./startup-3.sh`
 
 E a aplicação estará rodando normalmente.
+
+## Utilização da Aplicação
+
+Com a aplicação rodando a utilização é simples, com a ajuda do postman instalado anteriormente faça as requisições para localhost:3000.
+
+Com o método POST podemos salvar qualquer dado nas bases, basta efetuar uma requisição do tipo POST para localhost:3000 com um body em JSON que toda informação contida no body será salva com um id sequencial. Para consultar a informação salva anteriormente basta enfetuar uma requisição do tipo GET passando o id na URI: `localhost:3000/{id}`
 
 
 
